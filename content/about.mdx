@@ -1,8 +1,29 @@
 # About Vio
 
-Vio is an SDK for streaming platforms. Add engagement (polls, contests) and monetization (product spotlight) to your app. Native Swift and Kotlin SDKs, REST API, WebSocket.
+Vio is a **live engagement SDK** for sports streaming platforms. It adds interactive polls, contests, and shoppable products to live streams — synchronized with the broadcast in real-time.
+
+## What Vio Does
+
+- **Polls** — Timed prediction questions that appear at configured match minutes
+- **Contests** — Sponsored competitions with prizes
+- **Shoppable Products** — Sponsor product carousels and spotlights driven by the Dashboard
+- **WebSocket-driven** — All events are pushed in real-time, no polling required
+
+## Architecture
+
+The **Dashboard** is the control plane — broadcasters configure campaigns, broadcasts, and engagement elements. The **SDK** (Swift + Kotlin) receives everything at runtime via API and WebSocket.
+
+No code changes are needed to change what products appear, when polls fire, or which sponsors are active during a match.
+
+## SDKs
+
+| Platform | Status |
+|----------|--------|
+| iOS (Swift) | v0.1.0-alpha |
+| Android (Kotlin) | v1.0.1 |
 
 ## Contact
 
 - [vio.live](https://vio.live)
-- [GitHub](https://github.com/angelosv/vio-docs)
+- SDK: [github.com/angelosv/VioSwiftSDK](https://github.com/angelosv/VioSwiftSDK)
+- SDK: [github.com/angelosv/VioKotlinSDK](https://github.com/angelosv/VioKotlinSDK)
