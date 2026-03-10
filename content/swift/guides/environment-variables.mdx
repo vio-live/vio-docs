@@ -1,47 +1,53 @@
 # Environment Variables
 
-Quick theme switching and configuration using environment variables.
+Override configuration at runtime — useful for switching between demo configs and CI/CD.
 
-## Quick Start
+## Xcode Setup
 
-**In Xcode:** Edit Scheme → Run → Environment Variables
+**Edit Scheme → Run → Environment Variables**
 
 | Variable | Values | Description |
 |----------|--------|-------------|
-| `VIO_CONFIG_TYPE` | `dark-streaming`, `automatic`, `example` | Selects configuration file |
-| `VIO_API_KEY` | `your-api-key` | Override API key |
-| `VIO_ENVIRONMENT` | `production`, `sandbox` | Override environment |
+| `VIO_CONFIG_TYPE` | `viaplay`, `tv2`, `automatic` | Loads `vio-config-<type>.json` |
+| `VIO_ENVIRONMENT` | `production`, `development`, `sandbox` | Override environment |
+| `VIO_USER_COUNTRY` | `NO`, `SE`, `DK`, `GB`… | Override market country check |
 
-## Theme Options
+## Multi-Config Setup
 
-### Dark Streaming Theme
+Useful for demoing multiple clients (Viaplay, TV2) from the same codebase:
 
-```bash
-VIO_CONFIG_TYPE=dark-streaming
+```
+App Bundle
+├── vio-config-viaplay.json     → VIO_CONFIG_TYPE=viaplay
+├── vio-config-tv2.json         → VIO_CONFIG_TYPE=tv2
+└── vio-config.json             → default (no variable needed)
 ```
 
-- **Background**: Pure black (#000000)
-- **Primary**: Vibrant blue (#0066FF)
-- **Ideal for**: Streaming apps, gaming, media platforms
+## Config Priority
 
-### Automatic Theme
+1. `VIO_CONFIG_TYPE` environment variable → loads `vio-config-<type>.json`
+2. `vio-config.json` (no variable)
+3. `vio-config-automatic.json`
+4. `vio-config-example.json`
+5. SDK defaults
 
-```bash
-VIO_CONFIG_TYPE=automatic
-```
-
-- Follows iOS system light/dark mode
-- **Ideal for**: General apps, ecommerce
-
-## CI/CD Usage
+## Load from Environment Programmatically
 
 ```swift
-// Load from environment variables
+// Reads VIO_API_KEY, VIO_ENVIRONMENT, VIO_CONFIG_TYPE from ProcessInfo
 ConfigurationLoader.loadFromEnvironment()
 ```
 
-## Configuration Priority
+## Country Override
 
-1. **Environment variable** (`VIO_CONFIG_TYPE`) — Highest priority
-2. **Config files**: `vio-config-{type}.json`, `vio-config.json`
-3. **Fallback** to default configuration
+```swift
+// Load config, then check market availability for Norway
+ConfigurationLoader.loadConfiguration(userCountryCode: "NO")
+```
+
+Combined with `VIO_USER_COUNTRY` in the scheme, useful for testing market availability without changing code.
+
+## Next Steps
+
+- [Configuration](/swift/configuration) — Full vio-config.json reference
+- [Dark/Light Mode](/swift/guides/dark-light-mode) — Theme switching
