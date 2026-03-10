@@ -1,20 +1,22 @@
-# Complete Setup Example
+# Complete Setup
 
-Copy-paste example to integrate the Vio Swift SDK from scratch.
+Full integration of Vio live engagement in a streaming app. Copy and adapt as needed.
 
 ## 1. Package Dependencies
 
 ```swift
 // Package.swift
 dependencies: [
-    .package(url: "https://github.com/angelosv/VioSwiftSDK.git", from: "1.0.0")
+    .package(url: "https://github.com/angelosv/VioSwiftSDK.git", from: "0.1.0-alpha")
 ],
 targets: [
     .target(
         name: "YourApp",
         dependencies: [
             .product(name: "VioCore", package: "VioSwiftSDK"),
-            .product(name: "VioUI", package: "VioSwiftSDK")
+            .product(name: "VioEngagementUI", package: "VioSwiftSDK"),
+            .product(name: "ViaCastingUI", package: "VioSwiftSDK"),
+            .product(name: "VioUI", package: "VioSwiftSDK"),  // for products/cart
         ]
     )
 ]
@@ -22,22 +24,28 @@ targets: [
 
 ## 2. Configuration File (`vio-config.json`)
 
-Create in your app bundle:
+Add to your Xcode project — include in **Copy Bundle Resources**.
 
 ```json
 {
-  "apiKey": "your-vio-api-key-here",
+  "apiKey": "YOUR_VIO_API_KEY",
   "environment": "production",
-  "theme": {
-    "name": "My Store Theme",
-    "mode": "automatic",
-    "lightColors": { "primary": "#007AFF", "secondary": "#5856D6" },
-    "darkColors": { "primary": "#0A84FF", "secondary": "#5E5CE6" }
+  "campaigns": {
+    "webSocketBaseURL": "wss://api.vio.live",
+    "restAPIBaseURL": "https://api.vio.live",
+    "campaignApiKey": "YOUR_CAMPAIGN_API_KEY",
+    "autoDiscover": true
   },
-  "cart": {
-    "floatingCartPosition": "bottomRight",
-    "showCartNotifications": true,
-    "enableGuestCheckout": true
+  "theme": {
+    "mode": "automatic"
+  },
+  "marketFallback": {
+    "countryCode": "NO",
+    "currencyCode": "NOK"
+  },
+  "localization": {
+    "defaultLanguage": "no",
+    "fallbackLanguage": "en"
   }
 }
 ```
@@ -50,14 +58,15 @@ import VioCore
 import VioUI
 
 @main
-struct MyApp: App {
+struct MyStreamingApp: App {
     @StateObject private var cartManager = CartManager()
     @StateObject private var checkoutDraft = CheckoutDraft()
-    
+
     init() {
-        ConfigurationLoader.loadConfiguration()
+        // Loads vio-config.json, checks market availability for Norway
+        ConfigurationLoader.loadConfiguration(userCountryCode: "NO")
     }
-    
+
     var body: some Scene {
         WindowGroup {
             ContentView()
@@ -68,59 +77,125 @@ struct MyApp: App {
 }
 ```
 
-## 4. Main View with Components
+## 4. Stream View with Engagement Overlay
 
 ```swift
 import SwiftUI
 import VioCore
-import VioUI
+import VioEngagementUI
+import VioEngagementSystem
 
-struct ContentView: View {
-    @EnvironmentObject var cartManager: CartManager
-    @EnvironmentObject var checkoutDraft: CheckoutDraft
-    @State private var products: [Product] = []
-    
+struct StreamView: View {
+    let contentId: String          // e.g. "real-madrid-vs-barcelona-2025-01-24"
+    let broadcastName: String      // e.g. "Real Madrid vs Barcelona"
+
+    @StateObject private var engagement = EngagementManager.shared
+    @StateObject private var campaign = CampaignManager.shared
+    @EnvironmentObject private var cartManager: CartManager
+
+    @State private var activePoll: Poll?
+    @State private var activeContest: Contest?
+    @State private var showProducts = false
+
     var body: some View {
-        NavigationView {
-            ScrollView {
-                VStack(spacing: 20) {
-                    VioProductSlider(
-                        title: "Featured",
-                        products: products,
-                        layout: .featured,
-                        onAddToCart: { product in
-                            Task { await cartManager.addProduct(product) }
-                        }
-                    )
-                }
+        ZStack {
+            // Your video player
+            VideoPlayerView()
+
+            // Engagement overlay — shown on top of video
+            if campaign.shouldUseSDK {
+                engagementOverlay
             }
-            .navigationTitle("My Store")
         }
         .task {
-            do {
-                products = try await ProductService.shared.loadProducts(
-                    productIds: nil,
-                    currency: "USD",
-                    country: "US"
-                )
-            } catch {
-                print("Failed to load products: \(error)")
-            }
+            guard VioConfiguration.shared.shouldUseSDK else { return }
+
+            let context = BroadcastContext(
+                broadcastId: contentId,
+                broadcastName: broadcastName
+            )
+            await CampaignManager.shared.setBroadcastContext(context)
         }
-        .overlay { VioFloatingCartIndicator().environmentObject(cartManager) }
-        .sheet(isPresented: $cartManager.isCheckoutPresented) {
-            VioCheckoutOverlay()
-                .environmentObject(cartManager)
-                .environmentObject(checkoutDraft)
+        .onDisappear {
+            CampaignManager.shared.disconnect()
+        }
+        .onReceive(engagement.$activePollsForCurrentBroadcast) { polls in
+            activePoll = polls.first(where: { !$0.hasVoted })
+        }
+        .onReceive(engagement.$activeContestsForCurrentBroadcast) { contests in
+            activeContest = contests.first
+        }
+    }
+
+    @ViewBuilder
+    private var engagementOverlay: some View {
+        // Poll overlay
+        if let poll = activePoll {
+            VioEngagementPollOverlay(
+                question: poll.question,
+                subtitle: nil,
+                options: poll.options.map {
+                    VioEngagementPollOverlayOption(id: "\($0.id)", text: $0.text)
+                },
+                duration: 30,
+                isChatExpanded: false,
+                onVote: { optionId in
+                    Task { await engagement.vote(pollId: poll.id, optionId: Int(optionId) ?? 0) }
+                    activePoll = nil
+                },
+                onDismiss: { activePoll = nil }
+            )
+        }
+
+        // Contest overlay
+        if let contest = activeContest {
+            VioEngagementContestOverlay(
+                title: contest.title,
+                subtitle: contest.description,
+                imageUrl: contest.imageUrl,
+                sponsorLogoUrl: campaign.currentCampaign?.sponsor?.logoUrl,
+                onParticipate: {
+                    Task { await engagement.participate(contestId: contest.id) }
+                    activeContest = nil
+                },
+                onDismiss: { activeContest = nil }
+            )
+        }
+
+        // Product overlay
+        if showProducts {
+            VioEngagementProductOverlay(
+                products: [],  // products loaded separately via ProductService
+                isVisible: showProducts,
+                onDismiss: { showProducts = false },
+                onAddToCart: { product in
+                    Task { await cartManager.addProduct(product) }
+                }
+            )
         }
     }
 }
 ```
 
+## 5. Connecting to the Dashboard
+
+For each stream:
+
+1. Create a **Broadcast** in the Dashboard with the same `externalId` as your `contentId`
+2. Use the **Sportmonks match picker** to link a real fixture (auto-fills logos and teams)
+3. Add **Polls** with trigger minutes
+4. Add a **Contest** with prize text and image
+5. Set the broadcast status to **Live** when the stream starts
+6. Set to **Ended** when done
+
+No code changes needed — the SDK discovers everything at runtime.
+
 ## Implementation Checklist
 
-- [ ] Add VioSwiftSDK dependency
-- [ ] Create `vio-config.json` with API key
-- [ ] Call `ConfigurationLoader.loadConfiguration()` in App init
-- [ ] Add `CartManager` as environment object
-- [ ] Use `VioProductCard`, `VioProductSlider`, `VioFloatingCartIndicator`, `VioCheckoutOverlay`
+- [ ] Add VioSwiftSDK via SPM
+- [ ] Create `vio-config.json` with API key and campaigns section
+- [ ] Call `ConfigurationLoader.loadConfiguration(userCountryCode:)` in App init
+- [ ] Call `setBroadcastContext(BroadcastContext(broadcastId:))` when stream opens
+- [ ] Show engagement overlays from `EngagementManager` state
+- [ ] Call `CampaignManager.shared.disconnect()` when stream closes
+- [ ] Configure broadcast + polls + contest in Dashboard before going live
