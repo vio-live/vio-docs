@@ -1,6 +1,6 @@
 # Quick Start
 
-Get the Vio Swift SDK running in your app in under 5 minutes.
+Connect the Vio SDK to your streaming app in under 10 minutes.
 
 ## 1. Add the Package
 
@@ -10,11 +10,31 @@ In Xcode: **File → Add Package Dependencies...**
 https://github.com/angelosv/VioSwiftSDK.git
 ```
 
-Select the latest version and add the modules you need (e.g. `VioCore`, `VioUI`).
+Select version `0.1.0-alpha` and add `VioCore`, `VioEngagementUI`, `VioCastingUI` to your target.
 
-## 2. Configure the SDK
+## 2. Create `vio-config.json`
 
-In your app's entry point (e.g. `@main` App struct):
+Add a `vio-config.json` file to your Xcode project (**Copy Bundle Resources**):
+
+```json
+{
+  "apiKey": "YOUR_VIO_API_KEY",
+  "environment": "production",
+  "campaigns": {
+    "webSocketBaseURL": "wss://api.vio.live",
+    "restAPIBaseURL": "https://api.vio.live",
+    "campaignApiKey": "YOUR_CAMPAIGN_API_KEY",
+    "autoDiscover": true
+  },
+  "theme": {
+    "mode": "automatic"
+  }
+}
+```
+
+> Your API key and campaign API key are available in the **Vio Dashboard → Apps**.
+
+## 3. Load Configuration at Startup
 
 ```swift
 import VioCore
@@ -22,11 +42,10 @@ import VioCore
 @main
 struct MyApp: App {
     init() {
-        // Configure with your API credentials
-        ConfigurationLoader.loadConfiguration()
-        // Or: VioConfiguration.configure(apiKey: "your-api-key", environment: .production)
+        // Loads vio-config.json from the app bundle automatically
+        ConfigurationLoader.loadConfiguration(userCountryCode: "NO")
     }
-    
+
     var body: some Scene {
         WindowGroup {
             ContentView()
@@ -35,29 +54,74 @@ struct MyApp: App {
 }
 ```
 
-## 3. Add a Product Card
+## 4. Connect to a Broadcast
+
+Call `setBroadcastContext` with the `contentId` from your streaming platform. This triggers campaign discovery and WebSocket connection:
+
+```swift
+import VioCore
+
+// When the user opens a stream
+let context = BroadcastContext(
+    broadcastId: "real-madrid-vs-barcelona-2025-01-24",  // matches externalId in Dashboard
+    broadcastName: "Real Madrid vs Barcelona"
+)
+
+await CampaignManager.shared.setBroadcastContext(context)
+```
+
+From this point, the SDK:
+1. Calls the backend to find the active campaign for this broadcast
+2. Opens a WebSocket connection
+3. Polls and contests are pushed in real-time as you configured them in the Dashboard
+
+## 5. Show the Engagement Overlay
+
+Use `VioEngagementOverlay` (from `VioCastingUI`) to display polls and contests on top of your video player:
 
 ```swift
 import SwiftUI
-import VioUI
+import ViaCastingUI
 
-struct ProductListView: View {
-    let product: Product // Your product model from VioCore
-    
+struct StreamView: View {
     var body: some View {
-        VStack {
-            VioProductCard(product: product, onAddToCart: { })
+        ZStack {
+            // Your video player
+            VideoPlayerView()
+
+            // Vio engagement overlay — handles polls, contests, sponsor badge automatically
+            VioEngagementOverlay()
+        }
+        .task {
+            let context = BroadcastContext(
+                broadcastId: "your-broadcast-external-id"
+            )
+            await CampaignManager.shared.setBroadcastContext(context)
         }
     }
 }
 ```
 
-## 4. Run Your App
+## 6. Disconnect When Stream Ends
 
-Build and run. You should see the product card rendered with the Vio styling.
+```swift
+// When the user exits the stream
+CampaignManager.shared.disconnect()
+```
 
-## What's Next?
+## What Happens Automatically
 
-- [Installation](/swift/installation) — Detailed setup with SPM and CocoaPods
-- [Configuration](/swift/configuration) — Environment, themes, and options
-- [Core Concepts](/swift/core-concepts) — Understand the SDK architecture
+Once `setBroadcastContext` is called:
+
+- ✅ Campaign discovered via API (no manual campaignId needed)
+- ✅ WebSocket connected to receive real-time events
+- ✅ Sponsor logo and colors applied from backend
+- ✅ Polls appear at the scheduled minutes
+- ✅ Contests shown when triggered from Dashboard
+- ✅ Product overlay shown at sponsor slots
+
+## Next Steps
+
+- [Configuration](/swift/configuration) — Full `vio-config.json` reference
+- [Core Concepts](/swift/core-concepts) — Understand CampaignManager and the engagement flow
+- [Components](/swift/components) — All available SwiftUI components
