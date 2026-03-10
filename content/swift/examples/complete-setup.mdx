@@ -14,9 +14,10 @@ targets: [
         name: "YourApp",
         dependencies: [
             .product(name: "VioCore", package: "VioSwiftSDK"),
+            .product(name: "VioEngagementSystem", package: "VioSwiftSDK"),
             .product(name: "VioEngagementUI", package: "VioSwiftSDK"),
-            .product(name: "ViaCastingUI", package: "VioSwiftSDK"),
-            .product(name: "VioUI", package: "VioSwiftSDK"),  // for products/cart
+            .product(name: "VioCastingUI", package: "VioSwiftSDK"),
+            .product(name: "VioUI", package: "VioSwiftSDK"),
         ]
     )
 ]
@@ -63,7 +64,6 @@ struct MyStreamingApp: App {
     @StateObject private var checkoutDraft = CheckoutDraft()
 
     init() {
-        // Loads vio-config.json, checks market availability for Norway
         ConfigurationLoader.loadConfiguration(userCountryCode: "NO")
     }
 
@@ -82,12 +82,12 @@ struct MyStreamingApp: App {
 ```swift
 import SwiftUI
 import VioCore
-import VioEngagementUI
 import VioEngagementSystem
+import VioEngagementUI
 
 struct StreamView: View {
     let contentId: String          // e.g. "real-madrid-vs-barcelona-2025-01-24"
-    let broadcastName: String      // e.g. "Real Madrid vs Barcelona"
+    let broadcastName: String
 
     @StateObject private var engagement = EngagementManager.shared
     @StateObject private var campaign = CampaignManager.shared
@@ -95,59 +95,65 @@ struct StreamView: View {
 
     @State private var activePoll: Poll?
     @State private var activeContest: Contest?
-    @State private var showProducts = false
 
     var body: some View {
         ZStack {
             // Your video player
             VideoPlayerView()
 
-            // Engagement overlay — shown on top of video
-            if campaign.shouldUseSDK {
+            // Engagement overlay
+            if campaign.isCampaignActive {
                 engagementOverlay
             }
         }
         .task {
             guard VioConfiguration.shared.shouldUseSDK else { return }
-
             let context = BroadcastContext(
                 broadcastId: contentId,
                 broadcastName: broadcastName
             )
             await CampaignManager.shared.setBroadcastContext(context)
+            loadEngagementState()
         }
         .onDisappear {
             CampaignManager.shared.disconnect()
         }
-        .onReceive(engagement.$activePollsForCurrentBroadcast) { polls in
-            activePoll = polls.first(where: { !$0.hasVoted })
-        }
-        .onReceive(engagement.$activeContestsForCurrentBroadcast) { contests in
-            activeContest = contests.first
-        }
+    }
+
+    private func loadEngagementState() {
+        guard let context = CampaignManager.shared.currentBroadcastContext else { return }
+        activePoll = engagement.getActivePolls(for: context)
+            .first(where: { !engagement.hasVotedInPoll($0.id) })
+        activeContest = engagement.getActiveContests(for: context)
+            .first(where: { !engagement.hasParticipatedInContest($0.id) })
     }
 
     @ViewBuilder
     private var engagementOverlay: some View {
-        // Poll overlay
         if let poll = activePoll {
             VioEngagementPollOverlay(
                 question: poll.question,
                 subtitle: nil,
                 options: poll.options.map {
-                    VioEngagementPollOverlayOption(id: "\($0.id)", text: $0.text)
+                    VioEngagementPollOverlayOption(id: $0.id, text: $0.text)
                 },
                 duration: 30,
                 isChatExpanded: false,
                 onVote: { optionId in
-                    Task { await engagement.vote(pollId: poll.id, optionId: Int(optionId) ?? 0) }
-                    activePoll = nil
+                    Task {
+                        guard let context = CampaignManager.shared.currentBroadcastContext else { return }
+                        try? await engagement.voteInPoll(
+                            pollId: poll.id,
+                            optionId: optionId,
+                            broadcastContext: context
+                        )
+                        activePoll = nil
+                    }
                 },
                 onDismiss: { activePoll = nil }
             )
         }
 
-        // Contest overlay
         if let contest = activeContest {
             VioEngagementContestOverlay(
                 title: contest.title,
@@ -155,22 +161,16 @@ struct StreamView: View {
                 imageUrl: contest.imageUrl,
                 sponsorLogoUrl: campaign.currentCampaign?.sponsor?.logoUrl,
                 onParticipate: {
-                    Task { await engagement.participate(contestId: contest.id) }
-                    activeContest = nil
+                    Task {
+                        guard let context = CampaignManager.shared.currentBroadcastContext else { return }
+                        try? await engagement.participateInContest(
+                            contestId: contest.id,
+                            broadcastContext: context
+                        )
+                        activeContest = nil
+                    }
                 },
                 onDismiss: { activeContest = nil }
-            )
-        }
-
-        // Product overlay
-        if showProducts {
-            VioEngagementProductOverlay(
-                products: [],  // products loaded separately via ProductService
-                isVisible: showProducts,
-                onDismiss: { showProducts = false },
-                onAddToCart: { product in
-                    Task { await cartManager.addProduct(product) }
-                }
             )
         }
     }
@@ -181,21 +181,22 @@ struct StreamView: View {
 
 For each stream:
 
-1. Create a **Broadcast** in the Dashboard with the same `externalId` as your `contentId`
+1. Create a **Broadcast** in the Dashboard — `externalId` must match your `contentId`
 2. Use the **Sportmonks match picker** to link a real fixture (auto-fills logos and teams)
-3. Add **Polls** with trigger minutes
+3. Add **Polls** with trigger minutes (e.g. min 1, 35, 70)
 4. Add a **Contest** with prize text and image
-5. Set the broadcast status to **Live** when the stream starts
-6. Set to **Ended** when done
+5. Add **Sponsor Slots** with product IDs at key minutes
+6. Set the broadcast status to **Live** when the stream starts
 
-No code changes needed — the SDK discovers everything at runtime.
+No code changes needed once configured — the SDK discovers everything at runtime.
 
 ## Implementation Checklist
 
-- [ ] Add VioSwiftSDK via SPM
-- [ ] Create `vio-config.json` with API key and campaigns section
+- [ ] Add VioSwiftSDK via SPM (VioCore, VioEngagementSystem, VioEngagementUI, VioCastingUI, VioUI)
+- [ ] Create `vio-config.json` with `campaigns` section
 - [ ] Call `ConfigurationLoader.loadConfiguration(userCountryCode:)` in App init
 - [ ] Call `setBroadcastContext(BroadcastContext(broadcastId:))` when stream opens
-- [ ] Show engagement overlays from `EngagementManager` state
+- [ ] Show overlays from `EngagementManager.getActivePolls/getActiveContests(for:)`
+- [ ] Vote via `voteInPoll(pollId:optionId:broadcastContext:)`
 - [ ] Call `CampaignManager.shared.disconnect()` when stream closes
 - [ ] Configure broadcast + polls + contest in Dashboard before going live
