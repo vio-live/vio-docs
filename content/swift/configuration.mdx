@@ -1,27 +1,58 @@
 # Configuration
 
-Configure the Vio Swift SDK once and use everywhere. All modules (Core, UI, LiveShow) work automatically with the same settings.
+The Vio SDK is configured once at app startup via `vio-config.json`. The Dashboard handles all campaign, broadcast, poll, and sponsor configuration — no code changes needed after setup.
 
-## Quick Start
+## Configuration File (`vio-config.json`)
 
-### Option 1: Simple Setup (API Key Only)
+Add to your Xcode project and include in **Build Phases → Copy Bundle Resources**.
 
-```swift
-import VioCore
+### Full Example
 
-// In your AppDelegate or App.swift
-VioConfiguration.configure(apiKey: "your-api-key-here")
-
-// Now use anywhere in your app without additional setup
-VioProductCard(product: product) // Automatically configured
-VioCheckoutOverlay() // Uses global settings
+```json
+{
+  "apiKey": "YOUR_VIO_API_KEY",
+  "environment": "production",
+  "campaigns": {
+    "webSocketBaseURL": "wss://api.vio.live",
+    "restAPIBaseURL": "https://api.vio.live",
+    "campaignApiKey": "YOUR_CAMPAIGN_API_KEY",
+    "autoDiscover": true
+  },
+  "theme": {
+    "name": "My Theme",
+    "mode": "automatic",
+    "lightColors": {
+      "primary": "#007AFF"
+    },
+    "darkColors": {
+      "primary": "#0A84FF"
+    }
+  },
+  "marketFallback": {
+    "countryCode": "NO",
+    "currencyCode": "NOK"
+  },
+  "localization": {
+    "defaultLanguage": "no",
+    "fallbackLanguage": "en"
+  }
+}
 ```
 
-### Option 2: Configuration File (Recommended)
+## `campaigns` Section (Required for Engagement)
 
-**Step 1:** Add `vio-config.json` to your Xcode project  
-**Step 2:** Ensure it's in your app bundle (Copy Bundle Resources)  
-**Step 3:** Load at app startup:
+This is the key section that enables live engagement. All values are available in the **Vio Dashboard → Apps**.
+
+| Field | Description |
+|-------|-------------|
+| `webSocketBaseURL` | WebSocket server URL (e.g. `wss://api.vio.live`) |
+| `restAPIBaseURL` | REST API base URL (e.g. `https://api.vio.live`) |
+| `campaignApiKey` | API key from Dashboard — used for broadcast discovery and WS auth |
+| `autoDiscover` | `true` — SDK auto-discovers the campaign when you call `setBroadcastContext()` |
+
+> **Development:** Use `wss://api-dev.vio.live` and `https://api-dev.vio.live` for the staging backend.
+
+## Loading Configuration
 
 ```swift
 import VioCore
@@ -29,93 +60,96 @@ import VioCore
 @main
 struct MyApp: App {
     init() {
-        ConfigurationLoader.loadConfiguration()
-        // Or: try? ConfigurationLoader.loadFromJSON(fileName: "vio-config")
+        // Auto-detects vio-config.json in app bundle
+        ConfigurationLoader.loadConfiguration(userCountryCode: "NO")
     }
-    
     var body: some Scene {
-        WindowGroup {
-            ContentView()
-        }
+        WindowGroup { ContentView() }
     }
 }
 ```
 
-### Option 3: Environment Variables (Theme Switching)
+### Loading Options
+
+```swift
+// Auto-detect config file (recommended)
+ConfigurationLoader.loadConfiguration(userCountryCode: "NO")
+
+// Load specific file
+ConfigurationLoader.loadConfiguration(fileName: "vio-config-viaplay", userCountryCode: "NO")
+
+// Programmatic (no JSON file)
+VioConfiguration.configure(
+    apiKey: "your-api-key",
+    environment: .production,
+    campaignConfig: CampaignConfiguration(
+        webSocketBaseURL: "wss://api.vio.live",
+        restAPIBaseURL: "https://api.vio.live",
+        campaignApiKey: "your-campaign-key",
+        autoDiscover: true
+    )
+)
+```
+
+## Environment Variables (Scheme Override)
 
 Set in Xcode: **Edit Scheme → Run → Environment Variables**
 
 | Variable | Values | Description |
 |----------|--------|-------------|
-| `VIO_CONFIG_TYPE` | `dark-streaming`, `automatic`, `example` | Selects config file |
-| `VIO_API_KEY` | `your-api-key` | Override API key |
-| `VIO_ENVIRONMENT` | `production`, `sandbox` | Override environment |
+| `VIO_CONFIG_TYPE` | `viaplay`, `tv2`, `automatic` | Selects `vio-config-<type>.json` |
+| `VIO_ENVIRONMENT` | `production`, `development` | Override environment |
+| `VIO_USER_COUNTRY` | `NO`, `SE`, `DK`… | Override market country |
 
-## Configuration File (`vio-config.json`)
+## Theme
 
-### Minimal Example
+Sponsor colors override the theme at runtime — they come from the Dashboard automatically. Your theme is used as a fallback.
 
 ```json
 {
-  "apiKey": "YOUR_VIO_API_KEY_HERE",
-  "environment": "production",
   "theme": {
-    "name": "My Store Theme",
     "mode": "automatic",
     "lightColors": {
       "primary": "#007AFF",
-      "secondary": "#5856D6"
+      "background": "#FFFFFF",
+      "surface": "#F2F2F7"
     },
     "darkColors": {
       "primary": "#0A84FF",
-      "secondary": "#5E5CE6"
+      "background": "#000000",
+      "surface": "#1C1C1E"
     }
-  },
-  "cart": {
-    "floatingCartPosition": "bottomRight",
-    "floatingCartDisplayMode": "full",
-    "showCartNotifications": true,
-    "enableGuestCheckout": true
   }
 }
 ```
 
-### API Endpoints (Vio)
+**Theme modes:** `automatic` (follows iOS system) · `light` · `dark`
 
-The SDK connects to these Vio endpoints:
+## Market Availability
 
-| Environment | GraphQL | Campaigns |
-|-------------|---------|-----------|
-| Development | `https://graph-ql-dev.vio.live` | `https://api-dev.vio.live` |
-| Production | `https://api-ecom.vio.live` | `https://api.vio.live` |
+The SDK checks if your streaming service is available in the user's market. If the market is not available, the SDK disables itself silently.
 
-### Theme Modes
+```swift
+// Check availability
+let available = VioConfiguration.shared.isMarketAvailable
 
-| Mode | Description |
-|------|-------------|
-| `automatic` | Follows iOS system light/dark mode |
-| `light` | Force light theme |
-| `dark` | Force dark theme |
-
-### Cart Position Options
-
-```
-topLeft | topCenter | topRight
-centerLeft | centerRight
-bottomLeft | bottomCenter | bottomRight
+// Check specific country
+let isNorway = VioConfiguration.shared.isMarketAvailableForCountry("NO")
 ```
 
-### Localization
+## Localization
 
 ```json
 {
   "localization": {
-    "defaultLanguage": "en",
+    "defaultLanguage": "no",
     "fallbackLanguage": "en",
     "translationsFile": "vio-translations"
   }
 }
 ```
+
+The SDK includes built-in Norwegian (`no`), English (`en`), and Swedish (`sv`) translations. Custom translations can be added via `translationsFile`.
 
 ## Runtime Updates
 
@@ -123,23 +157,23 @@ bottomLeft | bottomCenter | bottomRight
 // Update theme at runtime
 VioConfiguration.updateTheme(.dark)
 
-// Update cart configuration
+// Update cart config
 VioConfiguration.updateCartConfiguration(
-    CartConfiguration(
-        floatingCartPosition: .topRight,
-        showCartNotifications: false
-    )
+    CartConfiguration(floatingCartPosition: .bottomRight)
 )
 ```
 
 ## Troubleshooting
 
-1. **Config not loading:** Ensure `vio-config.json` is in Build Phases → Copy Bundle Resources
-2. **JSON errors:** Validate JSON syntax (no trailing commas, quoted keys)
-3. **Verify:** `print(VioConfiguration.shared.apiKey)` to confirm loading
+| Problem | Fix |
+|---------|-----|
+| Config not loading | Ensure `vio-config.json` is in **Copy Bundle Resources** |
+| `hasEngagement: false` | Check `campaignApiKey` matches the app in the Dashboard |
+| WebSocket not connecting | Verify `webSocketBaseURL` and that the broadcast status is **live** in Dashboard |
+| Polls not appearing | Check broadcast `externalId` in Dashboard matches the `broadcastId` you pass to `setBroadcastContext` |
 
 ## Next Steps
 
-- [Complete Setup Example](/swift/examples/complete-setup) — Full copy-paste implementation
-- [Environment Variables](/swift/guides/environment-variables) — CI/CD and theme switching
-- [Dark/Light Mode](/swift/guides/dark-light-mode) — Theming guide
+- [Core Concepts](/swift/core-concepts) — CampaignManager and the engagement flow
+- [Dashboard Setup](/swift/getting-started#dashboard-setup) — Configure broadcasts and polls
+- [Components](/swift/components) — Available SwiftUI components
