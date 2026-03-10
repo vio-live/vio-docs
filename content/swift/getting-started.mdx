@@ -1,27 +1,66 @@
 # Getting Started
 
-This guide will help you integrate the Vio Swift SDK into your streaming app. Add engagement (polls, contests) and monetization (product spotlight) to your iOS, macOS, tvOS or watchOS application.
+Vio brings **live engagement** to sports streaming — polls, contests, and shoppable products that appear in sync with the broadcast. This guide walks you through a full integration.
 
 ## Prerequisites
 
-- **Xcode 15+** (for iOS/macOS development)
-- **Swift 5.9+**
-- **iOS 15+** / **macOS 12+** (minimum deployment targets)
+- **Xcode 15+** and **Swift 5.9+**
+- **iOS 15+** deployment target
+- A **Vio Dashboard account** — contact [vio.live](https://vio.live) to get access
 
-## Overview
+## How Vio Works
 
-The Vio Swift SDK is modular. You can choose which components to include:
+```
+Dashboard (you configure)          SDK (auto-handles)
+─────────────────────────          ──────────────────
+Campaign → Broadcast              discoverCampaigns()
+  ├── externalId (contentId)   →  setBroadcastContext(contentId)
+  ├── Polls (scheduled)        →  WebSocket → EngagementManager
+  ├── Contests                 →  polls/contests appear automatically
+  └── Sponsor (logo, color)    →  SponsorAssets applied globally
+```
+
+## Dashboard Setup
+
+Before writing any code, set up your broadcast in the [Vio Dashboard](https://staging.vio.live):
+
+### 1. Create a Campaign
+
+Go to **Campaigns → New Campaign**. This groups your broadcasts under a sponsor (e.g. Elkjøp, Viaplay).
+
+### 2. Create a Broadcast
+
+Go to **Broadcasts → New Broadcast**:
+- Select the match via the **Sportmonks match picker** (auto-fills logos, teams, fixture data)
+- The `externalId` is set automatically from the match picker — this is the `contentId` your app sends to the SDK
+- Assign it to your campaign
+
+### 3. Add Engagement
+
+Inside the broadcast:
+- **Polls** — create polls with options, set the trigger minute
+- **Contests** — create contests with image and prize text
+- **Sponsor Slots** — link products to specific minutes
+
+### 4. Get your API Key
+
+Go to **Apps** in the Dashboard and copy your API key. Use this in `vio-config.json`.
+
+---
+
+## Module Overview
 
 | Module | Description |
 |--------|-------------|
-| **VioCore** | Required — Configuration, models, and base functionality |
-| **VioUI** | Optional — SwiftUI components (Product Cards, Cart, Checkout) |
-| **VioLiveShow** | Optional — Live event broadcasting logic and data models |
-| **VioLiveUI** | Optional — Live event UI components (Video player, overlays) |
-| **VioCastingUI** | Optional — Casting-specific UI (polls, contests, product spotlight during live events) |
+| `VioCore` | Required — Configuration, CampaignManager, models |
+| `VioUI` | SwiftUI product components (carousel, detail, cart) |
+| `VioDesignSystem` | Design tokens — colors, spacing, typography |
+| `VioEngagementSystem` | Polls, contests, WebSocket engagement logic |
+| `VioEngagementUI` | Engagement SwiftUI components |
+| `VioCastingUI` | Overlays for live sports: timeline, sponsor badge, cards |
 
 ## Next Steps
 
-1. **[Install the SDK](/swift/installation)** — Add the package to your project
-2. **[Quick Start](/swift/quick-start)** — Run your first integration in minutes
-3. **[Configuration](/swift/configuration)** — Set up your environment and API keys
+1. **[Install the SDK](/swift/installation)** — Add the package
+2. **[Quick Start](/swift/quick-start)** — Connect the SDK in minutes
+3. **[Configuration](/swift/configuration)** — `vio-config.json` reference
