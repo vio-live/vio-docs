@@ -11,25 +11,21 @@ Global configuration singleton. Call `configure()` once at startup.
 ```swift
 import VioCore
 
-// Access state
 let config = VioConfiguration.shared
 let isConfigured = config.isConfigured
 let isAvailable = config.isMarketAvailable
 let shouldUse = config.shouldUseSDK  // isConfigured && isMarketAvailable
 
-// Runtime updates
 VioConfiguration.updateTheme(.dark)
 VioConfiguration.updateCartConfiguration(CartConfiguration(...))
 ```
 
 ### ConfigurationLoader
 
-Load config from bundle, string, remote URL, or environment variables.
-
 ```swift
 import VioCore
 
-// Recommended: auto-detect vio-config.json
+// Recommended
 ConfigurationLoader.loadConfiguration(userCountryCode: "NO")
 
 // Specific file
@@ -41,13 +37,11 @@ try? ConfigurationLoader.loadFromJSONString(jsonString)
 // From remote URL
 try await ConfigurationLoader.loadFromRemote(url: URL(string: "https://...")!)
 
-// From environment variables (CI / Xcode Scheme)
+// From environment variables
 ConfigurationLoader.loadFromEnvironment()
 ```
 
 ### CampaignManager
-
-Manages campaign discovery, WebSocket connection, and component lifecycle.
 
 ```swift
 import VioCore
@@ -73,8 +67,6 @@ await CampaignManager.shared.discoverCampaigns(broadcastId: "broadcast-id")
 ```
 
 ### BroadcastContext
-
-Links the SDK to a broadcast configured in the Dashboard.
 
 ```swift
 public struct BroadcastContext: Codable, Equatable {
@@ -102,7 +94,7 @@ public struct Campaign: Codable, Identifiable {
 
 ### SponsorInfo
 
-Sponsor identity delivered from the backend. No hardcoding needed.
+Sponsor identity delivered from the backend automatically.
 
 ```swift
 public struct SponsorInfo {
@@ -133,21 +125,46 @@ CampaignConfiguration(
 
 ### EngagementManager
 
-Manages poll and contest state. Updated automatically via WebSocket.
+Manages poll and contest state. Updated automatically via WebSocket after `setBroadcastContext`.
 
 ```swift
 import VioEngagementSystem
 
 @StateObject var engagement = EngagementManager.shared
 
-// Current polls for active broadcast
-engagement.activePollsForCurrentBroadcast
+// Get active polls/contests for the current broadcast
+guard let context = CampaignManager.shared.currentBroadcastContext else { return }
+let polls = engagement.getActivePolls(for: context)
+let contests = engagement.getActiveContests(for: context)
 
-// Current contests
-engagement.activeContestsForCurrentBroadcast
+// Check prior participation
+let hasVoted = engagement.hasVotedInPoll(pollId)
+let hasEntered = engagement.hasParticipatedInContest(contestId)
 
 // Vote on a poll
-await engagement.vote(pollId: poll.id, optionId: optionId)
+try await engagement.voteInPoll(
+    pollId: poll.id,
+    optionId: selectedOptionId,
+    broadcastContext: context
+)
+
+// Participate in a contest
+try await engagement.participateInContest(
+    contestId: contest.id,
+    broadcastContext: context
+)
+```
+
+### EngagementError
+
+```swift
+public enum EngagementError: LocalizedError {
+    case pollNotFound
+    case pollClosed
+    case alreadyVoted
+    case contestNotFound
+    // ...
+}
 ```
 
 ---
@@ -156,26 +173,21 @@ await engagement.vote(pollId: poll.id, optionId: optionId)
 
 ### ProductService
 
-Load products from the Commerce API.
-
 ```swift
 import VioUI
 
-// Single product
 let product = try await ProductService.shared.loadProduct(
     productId: "408841",
     currency: "NOK",
     country: "NO"
 )
 
-// Multiple products
 let products = try await ProductService.shared.loadProducts(
     productIds: [408841, 408895],
     currency: "NOK",
     country: "NO"
 )
 
-// Clear cache
 ProductService.shared.clearCache()
 ```
 
@@ -198,23 +210,9 @@ let count = cartManager.cart?.lineItems.count ?? 0
 
 ```swift
 public enum VioEnvironment {
-    case development   // → https://api-dev.vio.live
-    case sandbox       // → https://api-dev.vio.live (same as development)
-    case production    // → https://api.vio.live
-}
-```
-
----
-
-## ConfigurationError
-
-```swift
-public enum ConfigurationError: LocalizedError {
-    case notConfigured
-    case missingAPIKey
-    case fileNotFound(fileName: String)
-    case invalidJSON
-    case invalidPlist
+    case development   // https://api-dev.vio.live
+    case sandbox       // https://api-dev.vio.live
+    case production    // https://api.vio.live
 }
 ```
 
@@ -225,21 +223,18 @@ public enum ConfigurationError: LocalizedError {
 ```swift
 import VioDesignSystem
 
-// Colors
 VioColors.primary       // Sponsor primary (from backend) or theme fallback
 VioColors.background
 VioColors.surface
 VioColors.text
 VioColors.textSecondary
 
-// Spacing
 VioSpacing.xs  // 4pt
 VioSpacing.sm  // 8pt
 VioSpacing.md  // 16pt
 VioSpacing.lg  // 24pt
 VioSpacing.xl  // 32pt
 
-// Typography
 VioTypography.largeTitle
 VioTypography.title
 VioTypography.body
