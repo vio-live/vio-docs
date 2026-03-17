@@ -20,50 +20,39 @@ VioConfiguration.updateTheme(.dark)
 VioConfiguration.updateCartConfiguration(CartConfiguration(...))
 ```
 
-### ConfigurationLoader
+### VioSDK
+
+The main entry point. Call `configure` once at startup, `setContent` when a stream opens.
 
 ```swift
 import VioCore
 
-// Recommended
-ConfigurationLoader.loadConfiguration(userCountryCode: "NO")
+// Initialize (call once at app startup)
+VioSDK.configure(apiKey: "YOUR_VIO_API_KEY")
 
-// Specific file
-ConfigurationLoader.loadConfiguration(fileName: "vio-config-viaplay", userCountryCode: "NO")
+// Connect to a broadcast
+await VioSDK.setContent(
+    id: "real-madrid-vs-barcelona-2025-01-24",
+    userId: currentUser.id,       // optional
+    country: currentUser.country  // optional
+)
 
-// From JSON string
-try? ConfigurationLoader.loadFromJSONString(jsonString)
-
-// From remote URL
-try await ConfigurationLoader.loadFromRemote(url: URL(string: "https://...")!)
-
-// From environment variables
-ConfigurationLoader.loadFromEnvironment()
+// Disconnect when stream ends
+VioSDK.disconnect()
 ```
 
 ### CampaignManager
 
+Read-only access to campaign state after `VioSDK.setContent(id:)` is called.
+
 ```swift
 import VioCore
-
-// Connect to a broadcast
-let context = BroadcastContext(
-    broadcastId: "real-madrid-vs-barcelona-2025-01-24",
-    broadcastName: "Real Madrid vs Barcelona"
-)
-await CampaignManager.shared.setBroadcastContext(context)
 
 // Read state
 let campaign = CampaignManager.shared.currentCampaign
 let context = CampaignManager.shared.currentBroadcastContext
 let isConnected = CampaignManager.shared.isConnected
 let isActive = CampaignManager.shared.isCampaignActive
-
-// Disconnect
-CampaignManager.shared.disconnect()
-
-// Manual discovery
-await CampaignManager.shared.discoverCampaigns(broadcastId: "broadcast-id")
 ```
 
 ### BroadcastContext
@@ -104,19 +93,6 @@ public struct SponsorInfo {
     public let primaryColor: String?     // e.g. "#F5153B"
     public let badgeText: String?
 }
-```
-
-### CampaignConfiguration
-
-Set in `vio-config.json` under `"campaigns"`.
-
-```swift
-CampaignConfiguration(
-    webSocketBaseURL: "wss://api.vio.live",
-    restAPIBaseURL: "https://api.vio.live",
-    campaignApiKey: "YOUR_CAMPAIGN_API_KEY",
-    autoDiscover: true
-)
 ```
 
 ---
@@ -246,5 +222,5 @@ VioTypography.caption
 ## Next Steps
 
 - [Components](/swift/components) — SwiftUI component library
-- [Configuration](/swift/configuration) — vio-config.json reference
+- [Zero-Config SDK](/swift/guides/zero-config) — Initialization reference
 - [Complete Setup](/swift/examples/complete-setup) — Full integration example

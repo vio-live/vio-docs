@@ -7,7 +7,7 @@ Full integration of Vio live engagement in a streaming app. Copy and adapt as ne
 ```swift
 // Package.swift
 dependencies: [
-    .package(url: "https://github.com/angelosv/VioSwiftSDK.git", from: "0.1.0-beta")
+    .package(url: "https://github.com/angelosv/VioSwiftSDK.git", from: "0.2.0-beta")
 ],
 targets: [
     .target(
@@ -23,35 +23,7 @@ targets: [
 ]
 ```
 
-## 2. Configuration File (`vio-config.json`)
-
-Add to your Xcode project — include in **Copy Bundle Resources**.
-
-```json
-{
-  "apiKey": "YOUR_VIO_API_KEY",
-  "environment": "production",
-  "campaigns": {
-    "webSocketBaseURL": "wss://api.vio.live",
-    "restAPIBaseURL": "https://api.vio.live",
-    "campaignApiKey": "YOUR_CAMPAIGN_API_KEY",
-    "autoDiscover": true
-  },
-  "theme": {
-    "mode": "automatic"
-  },
-  "marketFallback": {
-    "countryCode": "NO",
-    "currencyCode": "NOK"
-  },
-  "localization": {
-    "defaultLanguage": "no",
-    "fallbackLanguage": "en"
-  }
-}
-```
-
-## 3. App Entry Point
+## 2. App Entry Point
 
 ```swift
 import SwiftUI
@@ -64,7 +36,7 @@ struct MyStreamingApp: App {
     @StateObject private var checkoutDraft = CheckoutDraft()
 
     init() {
-        ConfigurationLoader.loadConfiguration(userCountryCode: "NO")
+        VioSDK.configure(apiKey: "YOUR_VIO_API_KEY")
     }
 
     var body: some Scene {
@@ -77,7 +49,7 @@ struct MyStreamingApp: App {
 }
 ```
 
-## 4. Stream View with Engagement Overlay
+## 3. Stream View with Engagement Overlay
 
 ```swift
 import SwiftUI
@@ -87,7 +59,6 @@ import VioEngagementUI
 
 struct StreamView: View {
     let contentId: String          // e.g. "real-madrid-vs-barcelona-2025-01-24"
-    let broadcastName: String
 
     @StateObject private var engagement = EngagementManager.shared
     @StateObject private var campaign = CampaignManager.shared
@@ -107,25 +78,15 @@ struct StreamView: View {
             }
         }
         .task {
-            guard VioConfiguration.shared.shouldUseSDK else { return }
-            let context = BroadcastContext(
-                broadcastId: contentId,
-                broadcastName: broadcastName
+            await VioSDK.setContent(
+                id: contentId,
+                userId: currentUser.id,       // optional — enables per-user analytics
+                country: currentUser.country  // optional — market availability
             )
-            await CampaignManager.shared.setBroadcastContext(context)
-            loadEngagementState()
         }
         .onDisappear {
-            CampaignManager.shared.disconnect()
+            VioSDK.disconnect()
         }
-    }
-
-    private func loadEngagementState() {
-        guard let context = CampaignManager.shared.currentBroadcastContext else { return }
-        activePoll = engagement.getActivePolls(for: context)
-            .first(where: { !engagement.hasVotedInPoll($0.id) })
-        activeContest = engagement.getActiveContests(for: context)
-            .first(where: { !engagement.hasParticipatedInContest($0.id) })
     }
 
     @ViewBuilder
@@ -177,7 +138,7 @@ struct StreamView: View {
 }
 ```
 
-## 5. Connecting to the Dashboard
+## 4. Connecting to the Dashboard
 
 For each stream:
 
@@ -192,11 +153,9 @@ No code changes needed once configured — the SDK discovers everything at runti
 
 ## Implementation Checklist
 
-- [ ] Add VioSwiftSDK via SPM (VioCore, VioEngagementSystem, VioEngagementUI, VioCastingUI, VioUI)
-- [ ] Create `vio-config.json` with `campaigns` section
-- [ ] Call `ConfigurationLoader.loadConfiguration(userCountryCode:)` in App init
-- [ ] Call `setBroadcastContext(BroadcastContext(broadcastId:))` when stream opens
+- [ ] Add VioSwiftSDK via SPM (`VioCore`, `VioEngagementSystem`, `VioEngagementUI`, `VioCastingUI`, `VioUI`)
+- [ ] Call `VioSDK.configure(apiKey:)` in App init
+- [ ] Call `VioSDK.setContent(id:)` when stream opens
 - [ ] Show overlays from `EngagementManager.getActivePolls/getActiveContests(for:)`
-- [ ] Vote via `voteInPoll(pollId:optionId:broadcastContext:)`
-- [ ] Call `CampaignManager.shared.disconnect()` when stream closes
+- [ ] Call `VioSDK.disconnect()` when stream closes
 - [ ] Configure broadcast + polls + contest in Dashboard before going live
