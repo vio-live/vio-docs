@@ -1,0 +1,105 @@
+# Analytics & Tracking
+
+Vio tracks engagement and commerce events throughout the broadcast lifecycle. All events are available in the Vio Dashboard and via webhook export to your own data warehouse.
+
+## What Gets Tracked
+
+### Engagement Events
+
+| Event | Description |
+|-------|-------------|
+| `broadcast.joined` | User opened a stream with Vio active |
+| `broadcast.left` | User closed the stream |
+| `poll.viewed` | Poll card appeared on screen |
+| `poll.voted` | User submitted a vote (includes option selected) |
+| `contest.viewed` | Contest card appeared on screen |
+| `contest.entered` | User entered a contest |
+| `lineup.viewed` | Lineup timeline displayed |
+| `sponsor_moment.viewed` | Sponsor Moment appeared on screen |
+| `sponsor_moment.tapped` | User tapped the Sponsor Moment |
+
+### Commerce Events
+
+| Event | Description |
+|-------|-------------|
+| `product.viewed` | Product card appeared (carousel or banner) |
+| `product.tapped` | User opened product detail |
+| `cart.item_added` | Product added to cart |
+| `cart.item_removed` | Product removed from cart |
+| `checkout.started` | User opened checkout |
+| `checkout.completed` | Purchase confirmed |
+| `checkout.abandoned` | User exited without completing |
+
+---
+
+## Dashboard Analytics
+
+The Vio Dashboard provides real-time and historical views across:
+
+- **Viewer count** — concurrent users per broadcast
+- **Engagement rate** — % of viewers who interacted (voted, tapped, entered)
+- **Poll results** — vote distribution per question, per broadcast
+- **Sponsor performance** — impressions, taps, and conversion per sponsor per broadcast
+- **Revenue** — gross sales, average order value, items per order
+- **Funnel** — from product view → cart → checkout → purchase
+
+Filters: by campaign, broadcast, date range, country, and sponsor.
+
+---
+
+## Webhook Export
+
+Every event can be forwarded to your endpoint in real time. Configure the webhook URL in the Dashboard under **Settings → Webhooks**.
+
+Payload structure:
+
+```json
+{
+  "event": "poll.voted",
+  "userId": "your-platform-user-id",
+  "sessionId": "vio_sess_abc123",
+  "broadcastId": "real-madrid-vs-mancity-2026-03-11",
+  "campaignId": 35,
+  "timestamp": "2026-03-11T21:15:44Z",
+  "data": {
+    "pollId": "poll_42",
+    "questionText": "Hvem scorer først?",
+    "optionSelected": "Mbappé",
+    "optionIndex": 1
+  }
+}
+```
+
+All events include `userId` (if identified), `broadcastId`, `campaignId`, and `timestamp`. Commerce events additionally include `orderId`, `sponsorId`, `items`, and `total`.
+
+---
+
+## Raw Data Export
+
+Full event logs are available as CSV or JSON export from the Dashboard, or via the REST API:
+
+```
+GET /v1/analytics/events?campaignId=35&from=2026-03-01&to=2026-03-31
+Authorization: Bearer <admin-token>
+```
+
+The export includes every tracked event with full context — suitable for import into your own data warehouse (BigQuery, Snowflake, Redshift, etc.).
+
+---
+
+## Privacy & Compliance
+
+Vio's event tracking is designed for compliance with GDPR and similar regulations:
+
+- **No PII collected** — only `userId` (your opaque identifier) and behavioral data
+- **Data residency** — events are processed in the EU (Norway East)
+- **Retention** — raw event data is retained for 12 months by default; configurable per contract
+- **User deletion** — `DELETE /v1/users/:userId/events` removes all events for a given user
+
+---
+
+## Next Steps
+
+- [User Identification](/swift/guides/user-identification) — How to pass user context
+- [Dashboard](https://dashboard.vio.live) — Live analytics and sponsor performance
+- [Changelog](/swift/changelog) — Release history

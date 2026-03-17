@@ -1,0 +1,102 @@
+# User Identification
+
+Vio links engagement events, purchases, and session data to the authenticated user in your platform. This enables personalized experiences, purchase history, and per-user analytics.
+
+## How It Works
+
+Pass your platform's user identifier when the user opens a stream. Vio uses this ID as the canonical reference — it never replaces your auth system.
+
+```swift
+await VioSDK.setContent(
+    id: "real-madrid-vs-mancity-2026-03-11",
+    userId: currentUser.id,         // your internal user ID
+    country: currentUser.countryCode
+)
+```
+
+The `userId` is attached to every event, vote, and purchase that user generates. It surfaces in the Vio Dashboard under **Analytics → Users** and in the raw event export.
+
+---
+
+## Session Context
+
+For more control, build a `VioSessionContext` explicitly:
+
+```swift
+let context = VioSessionContext(
+    userId: currentUser.id,
+    contentId: stream.broadcastId,
+    country: currentUser.countryCode
+)
+```
+
+Pass it to any Vio view:
+
+```swift
+LiveMatchView(match: match, sessionContext: context)
+VCastingVideoPlayer(match: match, sessionContext: context)
+```
+
+---
+
+## Anonymous Sessions
+
+If the user is not authenticated, Vio generates an anonymous session ID automatically. Anonymous sessions still track engagement and purchases — the session ID is stored locally and persists across app launches.
+
+You can upgrade an anonymous session to an identified one at any point:
+
+```swift
+VioSDK.identify(userId: user.id) // call after login
+```
+
+All prior anonymous events in the current session are retroactively linked to the user.
+
+---
+
+## User Data
+
+Vio stores only what is necessary to deliver the experience:
+
+| Field | Stored | Used for |
+|-------|--------|----------|
+| `userId` | ✅ | Event attribution, purchase history |
+| `country` | ✅ | Market availability, localization |
+| `sessionId` | ✅ (anonymous fallback) | Session continuity |
+| Name, email, phone | ❌ | Not stored by Vio |
+
+Your user's PII never leaves your platform. Vio receives only the `userId` string you provide.
+
+---
+
+## Purchase Attribution
+
+Every purchase made through Vio is linked to the `userId` and the `broadcastId` at the time of checkout. This means you can query:
+
+- Which users purchased during a specific broadcast
+- Total revenue per user across campaigns
+- Conversion rate by user segment (via your own data warehouse)
+
+The raw purchase payload sent to your webhook includes:
+
+```json
+{
+  "orderId": "ord_abc123",
+  "userId": "your-platform-user-id",
+  "broadcastId": "real-madrid-vs-mancity-2026-03-11",
+  "campaignId": 35,
+  "sponsorId": 3,
+  "items": [ ... ],
+  "total": 2490,
+  "currency": "NOK",
+  "paymentMethod": "apple_pay",
+  "timestamp": "2026-03-11T21:47:33Z"
+}
+```
+
+---
+
+## Next Steps
+
+- [Analytics & Tracking](/swift/guides/analytics) — Engagement events and sponsor performance
+- [Zero-Config SDK](/swift/guides/zero-config) — Simplified initialization
+- [Configuration](/swift/configuration) — Full SDK configuration reference

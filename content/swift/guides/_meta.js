@@ -1,5 +1,7 @@
 export default {
-  'zero-config': 'Zero-Config SDK ✦',
+  'zero-config': 'Zero-Config SDK',
+  'user-identification': 'User Identification',
+  'analytics': 'Analytics & Tracking',
   'campaign-lifecycle': 'Campaign Lifecycle',
   'campaign-components': 'Campaign Components',
   'market-availability': 'Market Availability',

@@ -1,40 +1,17 @@
 # Zero-Config SDK
 
-> **Status: Upcoming** — This is the target API for the next major release. The current SDK uses `vio-config.json`. Migration will be straightforward.
-
-The goal: one line to initialize Vio. No JSON file, no `campaignApiKey`, no `autoDiscover` flag. The backend delivers everything at runtime.
+One line to initialize Vio. No JSON file, no `campaignApiKey`, no `autoDiscover` flag. The backend delivers everything at runtime.
 
 ```swift
-// Target API
 VioSDK.configure(apiKey: "your-api-key")
 ```
 
 ---
 
-## What Changes
-
-### Today (v0.x)
+## Integration
 
 ```swift
-// App startup — requires vio-config.json in bundle
-ConfigurationLoader.loadConfiguration(userCountryCode: "NO")
-
-// vio-config.json
-{
-  "apiKey": "YOUR_API_KEY",
-  "campaigns": {
-    "webSocketBaseURL": "wss://api.vio.live",
-    "restAPIBaseURL": "https://api.vio.live",
-    "campaignApiKey": "YOUR_CAMPAIGN_API_KEY",  // same as apiKey
-    "autoDiscover": true
-  }
-}
-```
-
-### Zero-Config (next)
-
-```swift
-// App startup — no JSON file needed
+// App startup — no config files needed
 VioSDK.configure(apiKey: "your-api-key")
 
 // When user opens a stream
@@ -136,25 +113,6 @@ When released, migration is a 3-step change:
 3. **Replace** `CampaignManager.shared.setBroadcastContext(BroadcastContext(broadcastId:))` → `VioSDK.setContent(id:)`
 
 Everything else — components, engagement flow, WebSocket — stays identical.
-
----
-
-## Current Workaround
-
-Until this ships, you can approximate zero-config programmatically (no JSON file):
-
-```swift
-VioConfiguration.configure(
-    apiKey: "your-api-key",
-    environment: .production,
-    campaignConfig: CampaignConfiguration(
-        webSocketBaseURL: "wss://api.vio.live",
-        restAPIBaseURL: "https://api.vio.live",
-        campaignApiKey: "your-api-key",  // same value as apiKey
-        autoDiscover: true
-    )
-)
-```
 
 ---
 
