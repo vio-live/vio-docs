@@ -33,7 +33,7 @@ export function Landing() {
           </Link>
         </div>
         <div className="vio-landing__meta">
-          <a href="https://github.com/angelosv/vio-docs" target="_blank" rel="noopener noreferrer">GitHub</a>
+          <a href="https://github.com/vio-live/vio-docs" target="_blank" rel="noopener noreferrer">GitHub</a>
           <span>•</span>
           <span>docs.vio.live</span>
         </div>
