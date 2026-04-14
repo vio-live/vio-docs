@@ -1,5 +1,16 @@
 # Changelog
 
+## April 2026
+
+### Features
+- **Push Notifications & Deep Links**: Explicit support for `cart_intent` actions from Firebase Push Notifications. SDK provides seamless paths to intercept notifications using standard intent actions and parse `vio_payload`.
+- **Product Fetching Overlay**: Enhanced components allow fetching single products via push notification ids to display product overlays seamlessly using `VioSdkClient.channel.product.get()`.
+- **VioLocalNotificationManager**: New internal SDK manager to coordinate notifications and intents across SDK/app boundaries.
+
+### Fixes & Improvements
+- Updated standard development and sandbox environment routes to use `api-dev.vio.live`.
+- Added `VioSDK.clearOpenedProduct()` lifecycle hook to cleanly reset broadcast triggers after a user interacts with a notification product.
+
 ## March 2026
 
 ### Features

@@ -1,3 +1,97 @@
 # Guides
 
-Content coming soon...
+Here you will find advanced integration guides for the Vio Kotlin SDK.
+
+## Push Notifications & Deep Links
+
+When integrating the Vio SDK with an e-commerce platform, push notifications are often used to trigger a `"cart_intent"` or to open a specific product directly on the user's device. The Vio SDK makes it easy to handle these payloads natively.
+
+### 1. Intercepting the Intent
+
+In your app's `MainActivity` or routing boundary, handle incoming intents that might contain products launched via push notifications (e.g., from Firebase Cloud Messaging).
+
+A notification payload sent by the Vio platform typically includes fields like `vio_payload`, `productId`, `campaignId`, and `action`.
+
+```kotlin
+private fun handleIntent(intent: Intent?) {
+    if (intent == null) return
+
+    val payload = parsePayloadJson(intent.getStringExtra("vio_payload"))
+    
+    // Extract the product ID ensuring compatibility with multiple payload sources
+    val productId = firstNonBlank(
+        intent.getStringExtra("productId"),
+        intent.getStringExtra("vio_cartIntent_productId"),
+        payload?.optString("product_id")
+    )
+    
+    val action = firstNonBlank(
+        intent.getStringExtra("action"),
+        intent.getStringExtra("vio_event_type"),
+        intent.getStringExtra("vio_cartIntent_kind")
+    )
+
+    if (action == "cart_intent" && !productId.isNullOrBlank()) {
+        println("🎁 Opened with productId: $productId")
+        // Save to state to trigger UI rendering
+        openedProductId = productId
+    }
+}
+
+private fun firstNonBlank(vararg values: String?): String? =
+    values.firstOrNull { !it.isNullOrBlank() }
+
+private fun parsePayloadJson(raw: String?): JSONObject? {
+    if (raw.isNullOrBlank()) return null
+    return try { JSONObject(raw) } catch (e: Exception) { null }
+}
+```
+
+Make sure to call `handleIntent` on your Activity's `onCreate()` and `onNewIntent()` depending on your launch modes.
+
+### 2. Fetching the Product and Displaying an Overlay
+
+Once you have the `openedProductId` in your Compose state, use `VioSdkClient` to fetch the product details from the Vio GraphQL APIs, and render a product overlay.
+
+```kotlin
+import live.vio.VioCore.configuration.VioConfiguration
+import live.vio.sdk.VioSDK
+import live.vio.sdk.network.VioSdkClient
+import java.net.URL
+
+@Composable
+fun AppContent(openedProductId: String?) {
+    var detailProduct by remember { mutableStateOf<Product?>(null) }
+
+    LaunchedEffect(openedProductId) {
+        val id = openedProductId ?: return@LaunchedEffect
+
+        try {
+            val state = VioConfiguration.shared.state.value
+            val client = VioSdkClient(
+                baseUrl = URL(state.commerce?.endpoint ?: state.environment.graphQLUrl),
+                apiKey = state.commerce?.apiKey ?: state.apiKey
+            )
+
+            // Fetch product via VioSdkClient
+            val dtos = client.channel.product.get(
+                currency = "USD", // Example
+                productIds = listOf(id.toInt()),
+                imageSize = "medium",
+                shippingCountryCode = "US"
+            )
+            
+            detailProduct = dtos.firstOrNull()?.toDomainProduct()
+        } catch (e: Exception) {
+            println("Error fetching product for Push: ${e.message}")
+        } finally {
+            // Signal the SDK to clean up any related momentary product states
+            VioSDK.clearOpenedProduct()
+        }
+    }
+
+    // Render detailProduct if not null...
+}
+```
+
+The `VioSDK.clearOpenedProduct()` function is a lifecycle hook added to ensure product states derived from push notifications are cleared gracefully in the SDK internals once they've been handled.
